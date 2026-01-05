@@ -1,6 +1,6 @@
 """
-Nexus Architecture - Core Module
-Nexus 架构核心模块
+Fielix Architecture - Core Module
+Fielix 架构核心模块
 
 包含所有核心组件：
 - 场效应传播 (Field Effect Propagation)
@@ -8,7 +8,7 @@ Nexus 架构核心模块
 - 螺旋记忆 (Spiral Memory)
 - 涌现式位置编码 (Emergent Position)
 - 自适应前馈网络 (Adaptive Feedforward)
-- Nexus 块 (Nexus Block)
+- Fielix 块 (Fielix Block)
 """
 
 from .field_propagation import (
@@ -44,20 +44,20 @@ from .feedforward import (
     AdaptiveWidthMLP,
     SparseExpertFFN,
     GatedFFN,
-    NexusFeedForward
+    FielixFeedForward
 )
 
 from .nexus_block import (
-    NexusBlock,
-    NexusPreNorm,
-    NexusResidual,
-    CrossNexusBlock,
+    FielixBlock,
+    FielixPreNorm,
+    FielixResidual,
+    CrossFielixBlock,
     CrossTopologyAttention
 )
 
 from .utils import (
     init_weights,
-    init_nexus_model,
+    init_fielix_model,
     stable_softmax,
     stable_log_softmax,
     clamp_gradients,
@@ -102,18 +102,18 @@ __all__ = [
     'AdaptiveWidthMLP',
     'SparseExpertFFN',
     'GatedFFN',
-    'NexusFeedForward',
+    'FielixFeedForward',
     
-    # Nexus Block
-    'NexusBlock',
-    'NexusPreNorm',
-    'NexusResidual',
-    'CrossNexusBlock',
+    # Fielix Block
+    'FielixBlock',
+    'FielixPreNorm',
+    'FielixResidual',
+    'CrossFielixBlock',
     'CrossTopologyAttention',
     
     # Utils
     'init_weights',
-    'init_nexus_model',
+    'init_fielix_model',
     'stable_softmax',
     'stable_log_softmax',
     'clamp_gradients',

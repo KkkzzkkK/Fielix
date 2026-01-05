@@ -1,5 +1,5 @@
 """
-Nexus Architecture - Emergent Position Encoding Module
+Fielix Architecture - Emergent Position Encoding Module
 涌现式位置编码模块
 
 核心创新：位置信息不是预定义的，而是从 token 之间的动态交互中涌现
@@ -12,7 +12,7 @@ Nexus Architecture - Emergent Position Encoding Module
 - 相对位置编码 (RPE): 需要显式计算位置矩阵
 - RoPE: 基于旋转，但仍是预定义的
 - ALiBi: 线性偏置，简单但表达能力有限
-- Nexus 涌现位置: 从数据中学习，自适应，可外推
+- Fielix 涌现位置: 从数据中学习，自适应，可外推
 """
 
 import torch
@@ -171,7 +171,7 @@ class RelationalPositionLearner(nn.Module):
 
 class EmergentPositionEncoder(nn.Module):
     """
-    涌现式位置编码器：Nexus 架构的位置编码核心
+    涌现式位置编码器：Fielix 架构的位置编码核心
     
     组合多种位置信息来源：
     1. 振荡信号（绝对位置的软编码）

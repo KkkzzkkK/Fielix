@@ -1,5 +1,5 @@
 """
-Nexus Architecture - Utilities Module
+Fielix Architecture - Utilities Module
 工具模块
 
 包含：
@@ -52,9 +52,9 @@ def init_weights(module: nn.Module, std: float = 0.02):
                 nn.init.zeros_(param)
 
 
-def init_nexus_model(model: nn.Module, std: float = 0.02, residual_scale: float = 1.0):
+def init_fielix_model(model: nn.Module, std: float = 0.02, residual_scale: float = 1.0):
     """
-    初始化整个 Nexus 模型
+    初始化整个 Fielix 模型
     
     Args:
         model: 模型
@@ -211,10 +211,10 @@ def apply_gradient_checkpointing(model: nn.Module, checkpoint_ratio: float = 0.5
         model: 模型
         checkpoint_ratio: 对多少比例的层应用检查点 (0-1)
     """
-    # 找到所有 NexusBlock
+    # 找到所有 FielixBlock
     blocks = []
     for name, module in model.named_modules():
-        if module.__class__.__name__ == 'NexusBlock':
+        if module.__class__.__name__ == 'FielixBlock':
             blocks.append((name, module))
     
     # 对指定比例的层启用检查点

@@ -1,5 +1,5 @@
 """
-Nexus vs Transformer 对比实验
+Fielix vs Transformer 对比实验
 - 相同参数量
 - 相同数据
 - 相同训练设置
@@ -22,7 +22,7 @@ torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
 
 sys.path.append(str(Path(__file__).parent.parent))
-from models.nexus_model import NexusConfig, NexusForCausalLM
+from models.nexus_model import FielixConfig, FielixForCausalLM
 
 # ============================================================================
 # 标准 Transformer 模型（对比基准）
@@ -241,7 +241,7 @@ def test_model(model, tokenizer, device, model_name):
 
 def main():
     print("=" * 60)
-    print("Nexus vs Transformer 对比实验")
+    print("Fielix vs Transformer 对比实验")
     print("=" * 60)
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -268,10 +268,10 @@ def main():
     print(f"样本数: {len(data)}")
     print(f"词汇量: {tokenizer.vocab_size}")
     
-    # ============ 创建 Nexus 模型 ============
+    # ============ 创建 Fielix 模型 ============
     print("\n" + "=" * 60)
-    print("创建 Nexus 模型...")
-    nexus_config = NexusConfig(
+    print("创建 Fielix 模型...")
+    fielix_config = FielixConfig(
         vocab_size=tokenizer.vocab_size + 50,
         dim=256,
         num_layers=4,               # 减少层数提高速度
@@ -282,13 +282,13 @@ def main():
         dropout=0.1,
         pad_token_id=0,
     )
-    nexus_model = NexusForCausalLM(nexus_config).to(device)
-    nexus_params = sum(p.numel() for p in nexus_model.parameters())
-    print(f"Nexus 参数量: {nexus_params:,} ({nexus_params/1e6:.2f}M)")
+    fielix_model = FielixForCausalLM(fielix_config).to(device)
+    fielix_params = sum(p.numel() for p in fielix_model.parameters())
+    print(f"Fielix 参数量: {fielix_params:,} ({fielix_params/1e6:.2f}M)")
     
     # ============ 创建 Transformer 模型 ============
     print("\n创建 Transformer 模型...")
-    # 调整配置匹配 Nexus 参数量
+    # 调整配置匹配 Fielix 参数量
     trans_config = TransformerConfig(
         vocab_size=tokenizer.vocab_size + 50,
         dim=320,                    # 增大维度匹配参数量
@@ -307,8 +307,8 @@ def main():
     print(f"\n开始训练 ({epochs} epochs)...")
     print("-" * 60)
     
-    print("\n训练 Nexus:")
-    nexus_history, nexus_time = train_model(nexus_model, dataloader, epochs, device, "Nexus")
+    print("\n训练 Fielix:")
+    fielix_history, fielix_time = train_model(fielix_model, dataloader, epochs, device, "Fielix")
     
     print("\n训练 Transformer:")
     trans_history, trans_time = train_model(trans_model, dataloader, epochs, device, "Transformer")
@@ -317,26 +317,26 @@ def main():
     print("\n" + "=" * 60)
     print("对比结果")
     print("=" * 60)
-    print(f"{'指标':<20} {'Nexus':<15} {'Transformer':<15}")
+    print(f"{'指标':<20} {'Fielix':<15} {'Transformer':<15}")
     print("-" * 50)
-    print(f"{'参数量':<20} {nexus_params:,} {trans_params:,}")
-    print(f"{'最终 Loss':<20} {nexus_history[-1]:.4f} {trans_history[-1]:.4f}")
-    print(f"{'训练时间':<20} {nexus_time:.1f}s {trans_time:.1f}s")
-    print(f"{'每秒样本':<20} {len(data)*epochs/nexus_time:.0f} {len(data)*epochs/trans_time:.0f}")
+    print(f"{'参数量':<20} {fielix_params:,} {trans_params:,}")
+    print(f"{'最终 Loss':<20} {fielix_history[-1]:.4f} {trans_history[-1]:.4f}")
+    print(f"{'训练时间':<20} {fielix_time:.1f}s {trans_time:.1f}s")
+    print(f"{'每秒样本':<20} {len(data)*epochs/fielix_time:.0f} {len(data)*epochs/trans_time:.0f}")
     
     # 测试生成
-    test_model(nexus_model, tokenizer, device, "Nexus")
+    test_model(fielix_model, tokenizer, device, "Fielix")
     test_model(trans_model, tokenizer, device, "Transformer")
     
     # 保存
     os.makedirs("./checkpoints", exist_ok=True)
-    torch.save({'model': nexus_model.state_dict(), 'config': nexus_config, 'history': nexus_history},
-               "./checkpoints/nexus_compare.pt")
+    torch.save({'model': fielix_model.state_dict(), 'config': fielix_config, 'history': fielix_history},
+               "./checkpoints/fielix_compare.pt")
     torch.save({'model': trans_model.state_dict(), 'config': trans_config, 'history': trans_history},
                "./checkpoints/transformer_compare.pt")
     
     # 保存 tokenizer
-    with open("./checkpoints/nexus_compare_tokenizer.json", "w", encoding="utf-8") as f:
+    with open("./checkpoints/fielix_compare_tokenizer.json", "w", encoding="utf-8") as f:
         json.dump({'char_to_id': tokenizer.char_to_id}, f, ensure_ascii=False, indent=2)
     
     print("\n模型已保存！")

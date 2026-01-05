@@ -1,6 +1,6 @@
 """
-Nexus Architecture - Nexus Block
-Nexus 块：将所有核心组件组合成一个完整的层
+Fielix Architecture - Fielix Block
+Fielix 块：将所有核心组件组合成一个完整的层
 
 架构设计：
 ┌─────────────────────────────────────────────────────┐
@@ -17,7 +17,7 @@ Nexus 块：将所有核心组件组合成一个完整的层
 ├─────────────────────────────────────────────────────┤
 │                 Spiral Memory (Optional)            │
 ├─────────────────────────────────────────────────────┤
-│                 Nexus Feed Forward                  │
+│                 Fielix Feed Forward                  │
 ├─────────────────────────────────────────────────────┤
 │                    Output                           │
 └─────────────────────────────────────────────────────┘
@@ -32,12 +32,12 @@ from .field_propagation import FieldEffectLayer
 from .dynamic_topology import DynamicTopologyLayer
 from .spiral_memory import SpiralMemoryLayer
 from .emergent_position import EmergentPositionEncoder
-from .feedforward import NexusFeedForward
+from .feedforward import FielixFeedForward
 
 
-class NexusBlock(nn.Module):
+class FielixBlock(nn.Module):
     """
-    Nexus 块：Nexus 架构的基本构建单元
+    Fielix 块：Fielix 架构的基本构建单元
     
     特点：
     - 灵活选择注意力机制（场效应 vs 动态拓扑）
@@ -106,7 +106,7 @@ class NexusBlock(nn.Module):
             )
         
         # 前馈网络
-        self.ffn = NexusFeedForward(
+        self.ffn = FielixFeedForward(
             dim,
             ffn_type=ffn_type,
             num_experts=num_experts,
@@ -160,7 +160,7 @@ class NexusBlock(nn.Module):
         return x, new_memory_state, aux_loss
 
 
-class NexusPreNorm(nn.Module):
+class FielixPreNorm(nn.Module):
     """
     Pre-Normalization 包装器
     """
@@ -174,7 +174,7 @@ class NexusPreNorm(nn.Module):
         return self.module(self.norm(x), **kwargs)
 
 
-class NexusResidual(nn.Module):
+class FielixResidual(nn.Module):
     """
     带缩放的残差连接
     """
@@ -191,9 +191,9 @@ class NexusResidual(nn.Module):
         return x + output * self.scale
 
 
-class CrossNexusBlock(nn.Module):
+class CrossFielixBlock(nn.Module):
     """
-    交叉 Nexus 块：用于编码器-解码器架构
+    交叉 Fielix 块：用于编码器-解码器架构
     
     支持编码器和解码器之间的信息交换
     """
@@ -219,7 +219,7 @@ class CrossNexusBlock(nn.Module):
         self.cross_attention = CrossTopologyAttention(dim, dropout=dropout)
         
         # 前馈
-        self.ffn = NexusFeedForward(dim, ffn_type=ffn_type, dropout=dropout)
+        self.ffn = FielixFeedForward(dim, ffn_type=ffn_type, dropout=dropout)
         
         # 归一化
         self.norm1 = nn.LayerNorm(dim)

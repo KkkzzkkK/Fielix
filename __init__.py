@@ -1,8 +1,8 @@
 """
-Nexus Architecture - A Novel Neural Network Architecture
-Nexus 架构 - 全新的神经网络架构
+Fielix Architecture - A Novel Neural Network Architecture
+Fielix 架构 - 全新的神经网络架构
 
-不同于 Transformer、RNN、CNN、SSM 等现有架构，Nexus 引入了以下创新：
+不同于 Transformer、RNN、CNN、SSM 等现有架构，Fielix 引入了以下创新：
 
 1. 场效应传播 (Field Effect Propagation)
    - 信息像物理场一样在特征空间中传播
@@ -24,12 +24,12 @@ Nexus 架构 - 全新的神经网络架构
    - 上下文相关
    - 支持任意长度外推
 
-Author: Nexus Research Team
+Author: Fielix Research Team
 Version: 1.0.0
 """
 
 __version__ = "1.0.0"
-__author__ = "Nexus Research Team"
+__author__ = "Fielix Research Team"
 
 from .core import (
     # Field Propagation
@@ -61,30 +61,30 @@ from .core import (
     AdaptiveWidthMLP,
     SparseExpertFFN,
     GatedFFN,
-    NexusFeedForward,
+    FielixFeedForward,
     
-    # Nexus Block
-    NexusBlock,
-    NexusPreNorm,
-    NexusResidual,
-    CrossNexusBlock,
+    # Fielix Block
+    FielixBlock,
+    FielixPreNorm,
+    FielixResidual,
+    CrossFielixBlock,
     CrossTopologyAttention,
 )
 
 from .models import (
-    NexusConfig,
-    NexusEmbedding,
-    NexusDecoder,
-    NexusLMHead,
-    NexusForCausalLM,
-    NexusForSequenceClassification,
-    NexusForTokenClassification
+    FielixConfig,
+    FielixEmbedding,
+    FielixDecoder,
+    FielixLMHead,
+    FielixForCausalLM,
+    FielixForSequenceClassification,
+    FielixForTokenClassification
 )
 
 
-def create_nexus_tiny() -> 'NexusForCausalLM':
+def create_fielix_tiny() -> 'FielixForCausalLM':
     """创建 Tiny 版本 (~25M 参数)"""
-    config = NexusConfig(
+    config = FielixConfig(
         vocab_size=32000,
         dim=256,
         num_layers=6,
@@ -92,12 +92,12 @@ def create_nexus_tiny() -> 'NexusForCausalLM':
         use_memory=False,
         ffn_type='gated'
     )
-    return NexusForCausalLM(config)
+    return FielixForCausalLM(config)
 
 
-def create_nexus_small() -> 'NexusForCausalLM':
+def create_fielix_small() -> 'FielixForCausalLM':
     """创建 Small 版本 (~125M 参数)"""
-    config = NexusConfig(
+    config = FielixConfig(
         vocab_size=32000,
         dim=512,
         num_layers=12,
@@ -105,12 +105,12 @@ def create_nexus_small() -> 'NexusForCausalLM':
         use_memory=True,
         ffn_type='gated'
     )
-    return NexusForCausalLM(config)
+    return FielixForCausalLM(config)
 
 
-def create_nexus_base() -> 'NexusForCausalLM':
+def create_fielix_base() -> 'FielixForCausalLM':
     """创建 Base 版本 (~350M 参数)"""
-    config = NexusConfig(
+    config = FielixConfig(
         vocab_size=32000,
         dim=768,
         num_layers=12,
@@ -118,12 +118,12 @@ def create_nexus_base() -> 'NexusForCausalLM':
         use_memory=True,
         ffn_type='gated'
     )
-    return NexusForCausalLM(config)
+    return FielixForCausalLM(config)
 
 
-def create_nexus_large() -> 'NexusForCausalLM':
+def create_fielix_large() -> 'FielixForCausalLM':
     """创建 Large 版本 (~760M 参数)"""
-    config = NexusConfig(
+    config = FielixConfig(
         vocab_size=32000,
         dim=1024,
         num_layers=24,
@@ -132,7 +132,7 @@ def create_nexus_large() -> 'NexusForCausalLM':
         ffn_type='moe',
         num_experts=8
     )
-    return NexusForCausalLM(config)
+    return FielixForCausalLM(config)
 
 
 __all__ = [
@@ -161,25 +161,25 @@ __all__ = [
     'AdaptiveWidthMLP',
     'SparseExpertFFN',
     'GatedFFN',
-    'NexusFeedForward',
-    'NexusBlock',
-    'NexusPreNorm',
-    'NexusResidual',
-    'CrossNexusBlock',
+    'FielixFeedForward',
+    'FielixBlock',
+    'FielixPreNorm',
+    'FielixResidual',
+    'CrossFielixBlock',
     'CrossTopologyAttention',
     
     # Models
-    'NexusConfig',
-    'NexusEmbedding',
-    'NexusDecoder',
-    'NexusLMHead',
-    'NexusForCausalLM',
-    'NexusForSequenceClassification',
-    'NexusForTokenClassification',
+    'FielixConfig',
+    'FielixEmbedding',
+    'FielixDecoder',
+    'FielixLMHead',
+    'FielixForCausalLM',
+    'FielixForSequenceClassification',
+    'FielixForTokenClassification',
     
     # Factory functions
-    'create_nexus_tiny',
-    'create_nexus_small',
-    'create_nexus_base',
-    'create_nexus_large',
+    'create_fielix_tiny',
+    'create_fielix_small',
+    'create_fielix_base',
+    'create_fielix_large',
 ]

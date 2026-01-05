@@ -1,5 +1,5 @@
 """
-Nexus Architecture - Dynamic Topology Module
+Fielix Architecture - Dynamic Topology Module
 动态拓扑连接模块
 
 核心创新：不使用固定的全连接注意力模式，而是根据输入内容动态生成稀疏连接图
@@ -419,7 +419,7 @@ class HierarchicalTopology(nn.Module):
 
 class DynamicTopologyLayer(nn.Module):
     """
-    动态拓扑层：Nexus 架构的核心连接层
+    动态拓扑层：Fielix 架构的核心连接层
     
     集成了：
     - 动态拓扑预测

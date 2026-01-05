@@ -1,5 +1,5 @@
 """
-原版 Nexus 性能剖析 - 使用 torch.profiler 找出瓶颈
+原版 Fielix 性能剖析 - 使用 torch.profiler 找出瓶颈
 """
 
 import torch
@@ -18,7 +18,7 @@ torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
 
 sys.path.append(str(Path(__file__).parent.parent))
-from models.nexus_model import NexusConfig, NexusForCausalLM
+from models.nexus_model import FielixConfig, FielixForCausalLM
 
 # ============================================================================
 # 分词器和数据集
@@ -63,9 +63,9 @@ class ChatDataset(Dataset):
 # 性能剖析
 # ============================================================================
 
-def profile_nexus():
+def profile_fielix():
     print("=" * 60)
-    print("原版 Nexus 性能剖析")
+    print("原版 Fielix 性能剖析")
     print("=" * 60)
     
     device = "cuda"
@@ -95,15 +95,15 @@ def profile_nexus():
     dataloader = DataLoader(dataset, batch_size=256, shuffle=True, 
                            num_workers=4, pin_memory=True, drop_last=True)
     
-    # 创建原版 Nexus 模型
-    print("\n创建原版 Nexus 模型...")
-    config = NexusConfig(
+    # 创建原版 Fielix 模型
+    print("\n创建原版 Fielix 模型...")
+    config = FielixConfig(
         vocab_size=tokenizer.vocab_size + 100,
         dim=512, num_layers=6, max_seq_len=max_len,
         attention_type='field', use_memory=False, ffn_type='gated',
         dropout=0.1, pad_token_id=0,
     )
-    model = NexusForCausalLM(config).to(device)
+    model = FielixForCausalLM(config).to(device)
     params = sum(p.numel() for p in model.parameters())
     print(f"参数量: {params:,} ({params/1e6:.2f}M)")
     
@@ -112,7 +112,7 @@ def profile_nexus():
     model.train()
     
     # 创建 profiler 输出目录
-    os.makedirs("./log/nexus_profile", exist_ok=True)
+    os.makedirs("./log/fielix_profile", exist_ok=True)
     
     print("\n开始性能剖析...")
     print("剖析配置: wait=1, warmup=1, active=3, repeat=2")
@@ -124,7 +124,7 @@ def profile_nexus():
             torch.profiler.ProfilerActivity.CUDA,
         ],
         schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
-        on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/nexus_profile'),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/fielix_profile'),
         record_shapes=True,
         profile_memory=True,
         with_stack=True,
@@ -167,7 +167,7 @@ def profile_nexus():
     print(prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=10))
     
     print("\n查看详细结果:")
-    print("  tensorboard --logdir=./log/nexus_profile")
+    print("  tensorboard --logdir=./log/fielix_profile")
 
 if __name__ == "__main__":
-    profile_nexus()
+    profile_fielix()

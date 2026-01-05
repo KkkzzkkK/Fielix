@@ -1,5 +1,5 @@
 """
-Nexus 聊天 - 运行: python chat.py
+Fielix 聊天 - 运行: python chat.py
 """
 import torch
 import json
@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
-from models.nexus_model import NexusConfig, NexusForCausalLM
+from models.nexus_model import FielixConfig, FielixForCausalLM
 
 class Tokenizer:
     def __init__(self):
@@ -31,17 +31,17 @@ class Tokenizer:
 
 def main():
     print("=" * 50)
-    print("  Nexus 聊天助手")
+    print("  Fielix 聊天助手")
     print("  (输入 quit 退出)")
     print("=" * 50)
     
     # 加载对比实验的模型
-    ckpt = torch.load("./checkpoints/nexus_compare.pt", map_location="cuda", weights_only=False)
-    model = NexusForCausalLM(ckpt['config']).cuda()
+    ckpt = torch.load("./checkpoints/fielix_compare.pt", map_location="cuda", weights_only=False)
+    model = FielixForCausalLM(ckpt['config']).cuda()
     model.load_state_dict({k.replace("module.", ""): v for k, v in ckpt['model'].items()})
     model.eval()
     
-    tokenizer = Tokenizer.load("./checkpoints/nexus_compare_tokenizer.json")
+    tokenizer = Tokenizer.load("./checkpoints/fielix_compare_tokenizer.json")
     print(f"模型加载成功！\n")
     
     while True:
@@ -61,7 +61,7 @@ def main():
             resp = tokenizer.decode(out[0].tolist())
             if "<BOT>" in resp:
                 resp = resp.split("<BOT>")[-1]
-            print(f"Nexus: {resp}\n")
+            print(f"Fielix: {resp}\n")
         except KeyboardInterrupt:
             print("\n再见！")
             break

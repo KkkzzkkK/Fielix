@@ -1,5 +1,5 @@
 """
-Nexus Architecture - Adaptive Feedforward Module
+Fielix Architecture - Adaptive Feedforward Module
 自适应前馈模块
 
 核心创新：前馈网络不是固定的 MLP，而是根据输入内容动态选择专家和路由
@@ -270,9 +270,9 @@ class GatedFFN(nn.Module):
         return output
 
 
-class NexusFeedForward(nn.Module):
+class FielixFeedForward(nn.Module):
     """
-    Nexus 前馈层：组合多种前馈机制
+    Fielix 前馈层：组合多种前馈机制
     
     根据配置选择：
     - 自适应宽度 MLP

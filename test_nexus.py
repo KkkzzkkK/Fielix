@@ -1,5 +1,5 @@
 """
-Nexus Architecture - 快速测试脚本
+Fielix Architecture - 快速测试脚本
 """
 
 import torch
@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 print("=" * 60)
-print("Nexus Architecture - 测试运行")
+print("Fielix Architecture - 测试运行")
 print("=" * 60)
 
 # 测试导入
@@ -20,8 +20,8 @@ try:
     from core.dynamic_topology import DynamicTopologyLayer
     from core.spiral_memory import SpiralMemoryLayer
     from core.emergent_position import EmergentPositionEncoder
-    from core.feedforward import NexusFeedForward
-    from core.nexus_block import NexusBlock
+    from core.feedforward import FielixFeedForward
+    from core.nexus_block import FielixBlock
     print("    ✓ 所有核心模块导入成功")
 except Exception as e:
     print(f"    ✗ 导入失败: {e}")
@@ -87,9 +87,9 @@ except Exception as e:
     print(f"    ✗ 失败: {e}")
 
 # 测试前馈网络
-print("\n[8] 测试 NexusFeedForward...")
+print("\n[8] 测试 FielixFeedForward...")
 try:
-    ffn = NexusFeedForward(dim, ffn_type='gated')
+    ffn = FielixFeedForward(dim, ffn_type='gated')
     out, aux_loss = ffn(x)
     print(f"    ✓ 输出形状: {out.shape}")
     assert out.shape == x.shape, "形状不匹配"
@@ -97,8 +97,8 @@ try:
 except Exception as e:
     print(f"    ✗ 失败: {e}")
 
-# 测试 Nexus 块
-print("\n[9] 测试 NexusBlock...")
+# 测试 Fielix 块
+print("\n[9] 测试 FielixBlock...")
 try:
     # 测试不同配置
     configs = [
@@ -108,7 +108,7 @@ try:
     ]
     
     for attn_type, use_mem in configs:
-        block = NexusBlock(
+        block = FielixBlock(
             dim=dim,
             attention_type=attn_type,
             use_memory=use_mem,
@@ -117,16 +117,16 @@ try:
         out, mem, aux = block(x, causal=True)
         print(f"    ✓ {attn_type} + memory={use_mem}: 输出形状 {out.shape}")
     
-    print("    ✓ Nexus 块测试通过")
+    print("    ✓ Fielix 块测试通过")
 except Exception as e:
     print(f"    ✗ 失败: {e}")
 
 # 测试完整模型
 print("\n[10] 测试完整模型...")
 try:
-    from models.nexus_model import NexusConfig, NexusForCausalLM
+    from models.nexus_model import FielixConfig, FielixForCausalLM
     
-    config = NexusConfig(
+    config = FielixConfig(
         vocab_size=1000,
         dim=256,
         num_layers=4,
@@ -137,7 +137,7 @@ try:
         dropout=0.1
     )
     
-    model = NexusForCausalLM(config)
+    model = FielixForCausalLM(config)
     num_params = model.get_num_params()
     print(f"    ✓ 模型创建成功")
     print(f"    ✓ 参数量: {num_params:,} ({num_params/1e6:.2f}M)")
@@ -179,5 +179,5 @@ except Exception as e:
     print(f"    ✗ 失败: {e}")
 
 print("\n" + "=" * 60)
-print("所有测试完成！Nexus 架构运行正常 ✓")
+print("所有测试完成！Fielix 架构运行正常 ✓")
 print("=" * 60)

@@ -1,5 +1,5 @@
 """
-Nexus vs Transformer 对比 - 使用专业数据集 (BELLE/ShareGPT)
+Fielix vs Transformer 对比 - 使用专业数据集 (BELLE/ShareGPT)
 """
 
 import torch
@@ -20,7 +20,7 @@ torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
 
 sys.path.append(str(Path(__file__).parent.parent))
-from models.nexus_model import NexusConfig, NexusForCausalLM
+from models.nexus_model import FielixConfig, FielixForCausalLM
 
 # ============================================================================
 # 标准 Transformer 模型
@@ -180,7 +180,7 @@ def test_model(model, tokenizer, device, model_name):
 
 def train():
     print("=" * 60)
-    print("Nexus vs Transformer - 专业数据集对比")
+    print("Fielix vs Transformer - 专业数据集对比")
     print("=" * 60)
     
     device = "cuda" if torch.cuda.is_available() else "cpu"

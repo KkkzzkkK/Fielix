@@ -1,6 +1,6 @@
 """
-Nexus Architecture - Complete Model Implementation
-Nexus 架构完整模型实现
+Fielix Architecture - Complete Model Implementation
+Fielix 架构完整模型实现
 
 这是一个全新的神经网络架构，不同于 Transformer、RNN、SSM 等现有架构。
 
@@ -22,18 +22,18 @@ from dataclasses import dataclass
 import sys
 sys.path.append('..')
 from core import (
-    NexusBlock,
+    FielixBlock,
     EmergentPositionEncoder,
     FieldEffectLayer,
     DynamicTopologyLayer,
     SpiralMemoryLayer,
-    NexusFeedForward
+    FielixFeedForward
 )
 
 
 @dataclass
-class NexusConfig:
-    """Nexus 模型配置"""
+class FielixConfig:
+    """Fielix 模型配置"""
     # 基本参数
     vocab_size: int = 32000
     dim: int = 768
@@ -71,9 +71,9 @@ class NexusConfig:
             self.ffn_dim = int(self.dim * 8 / 3)  # SwiGLU 最优比例
 
 
-class NexusEmbedding(nn.Module):
+class FielixEmbedding(nn.Module):
     """
-    Nexus 嵌入层
+    Fielix 嵌入层
     
     特点：
     - 可学习的 token 嵌入
@@ -81,7 +81,7 @@ class NexusEmbedding(nn.Module):
     - 嵌入缩放
     """
     
-    def __init__(self, config: NexusConfig):
+    def __init__(self, config: FielixConfig):
         super().__init__()
         self.config = config
         
@@ -153,18 +153,18 @@ class NexusEmbedding(nn.Module):
         return x
 
 
-class NexusDecoder(nn.Module):
+class FielixDecoder(nn.Module):
     """
-    Nexus 解码器：堆叠多个 Nexus 块
+    Fielix 解码器：堆叠多个 Fielix 块
     """
     
-    def __init__(self, config: NexusConfig):
+    def __init__(self, config: FielixConfig):
         super().__init__()
         self.config = config
         
         # 创建层
         self.layers = nn.ModuleList([
-            NexusBlock(
+            FielixBlock(
                 dim=config.dim,
                 attention_type=config.attention_type,
                 use_memory=(config.use_memory and i % 3 == 2),  # 每 3 层加一次记忆
@@ -209,7 +209,7 @@ class NexusDecoder(nn.Module):
             if memory_states is not None and i < len(memory_states):
                 layer_memory = memory_states[i]
             
-            # 直接前向传播（梯度检查点与 Nexus 组件不兼容）
+            # 直接前向传播（梯度检查点与 Fielix 组件不兼容）
             x, new_layer_memory, aux_loss = layer(
                 x, 
                 mask=mask,
@@ -228,12 +228,12 @@ class NexusDecoder(nn.Module):
         return x, new_memory_states, total_aux_loss
 
 
-class NexusLMHead(nn.Module):
+class FielixLMHead(nn.Module):
     """
     语言模型头：将隐藏状态映射到词汇表
     """
     
-    def __init__(self, config: NexusConfig, shared_embedding: Optional[nn.Embedding] = None):
+    def __init__(self, config: FielixConfig, shared_embedding: Optional[nn.Embedding] = None):
         super().__init__()
         self.config = config
         
@@ -254,9 +254,9 @@ class NexusLMHead(nn.Module):
         return F.linear(x, self.weight)
 
 
-class NexusForCausalLM(nn.Module):
+class FielixForCausalLM(nn.Module):
     """
-    Nexus 因果语言模型
+    Fielix 因果语言模型
     
     完整的语言模型实现，支持：
     - 自回归生成
@@ -264,18 +264,18 @@ class NexusForCausalLM(nn.Module):
     - KV 缓存（通过记忆系统实现）
     """
     
-    def __init__(self, config: NexusConfig):
+    def __init__(self, config: FielixConfig):
         super().__init__()
         self.config = config
         
         # 嵌入层
-        self.embedding = NexusEmbedding(config)
+        self.embedding = FielixEmbedding(config)
         
         # 解码器
-        self.decoder = NexusDecoder(config)
+        self.decoder = FielixDecoder(config)
         
         # 语言模型头
-        self.lm_head = NexusLMHead(
+        self.lm_head = FielixLMHead(
             config, 
             shared_embedding=self.embedding.token_embedding if config.tie_word_embeddings else None
         )
@@ -404,21 +404,21 @@ class NexusForCausalLM(nn.Module):
         return n_params
 
 
-class NexusForSequenceClassification(nn.Module):
+class FielixForSequenceClassification(nn.Module):
     """
-    Nexus 序列分类模型
+    Fielix 序列分类模型
     """
     
-    def __init__(self, config: NexusConfig, num_labels: int):
+    def __init__(self, config: FielixConfig, num_labels: int):
         super().__init__()
         self.config = config
         self.num_labels = num_labels
         
         # 嵌入层
-        self.embedding = NexusEmbedding(config)
+        self.embedding = FielixEmbedding(config)
         
         # 解码器
-        self.decoder = NexusDecoder(config)
+        self.decoder = FielixDecoder(config)
         
         # 分类头
         self.classifier = nn.Sequential(
@@ -472,21 +472,21 @@ class NexusForSequenceClassification(nn.Module):
         }
 
 
-class NexusForTokenClassification(nn.Module):
+class FielixForTokenClassification(nn.Module):
     """
-    Nexus Token 分类模型（NER、POS 等）
+    Fielix Token 分类模型（NER、POS 等）
     """
     
-    def __init__(self, config: NexusConfig, num_labels: int):
+    def __init__(self, config: FielixConfig, num_labels: int):
         super().__init__()
         self.config = config
         self.num_labels = num_labels
         
         # 嵌入层
-        self.embedding = NexusEmbedding(config)
+        self.embedding = FielixEmbedding(config)
         
         # 解码器
-        self.decoder = NexusDecoder(config)
+        self.decoder = FielixDecoder(config)
         
         # 分类头
         self.classifier = nn.Linear(config.dim, num_labels)

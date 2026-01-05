@@ -44,9 +44,9 @@ cd nexus
 ### Quick Start
 
 ```python
-from models.nexus_model import NexusConfig, NexusForCausalLM
+from models.nexus_model import FielixConfig, FielixForCausalLM
 
-config = NexusConfig(
+config = FielixConfig(
     vocab_size=32000,
     dim=512,
     num_layers=6,
@@ -54,20 +54,20 @@ config = NexusConfig(
     use_memory=True,         # Enable spiral memory
 )
 
-model = NexusForCausalLM(config)
+model = FielixForCausalLM(config)
 ```
 
 ### Architecture Components
 
 ```
-nexus/
+fielix/
 ├── core/
 │   ├── field_propagation.py   # Field effect propagation
 │   ├── dynamic_topology.py    # Dynamic topology
 │   ├── spiral_memory.py       # Spiral memory
 │   ├── emergent_position.py   # Emergent position encoding
 │   ├── feedforward.py         # Adaptive feedforward network
-│   └── nexus_block.py         # Nexus basic block
+│   └── nexus_block.py         # Fielix basic block
 ├── models/
 │   └── nexus_model.py         # Complete model
 └── train/
@@ -145,9 +145,9 @@ cd nexus
 ### 快速开始
 
 ```python
-from models.nexus_model import NexusConfig, NexusForCausalLM
+from models.nexus_model import FielixConfig, FielixForCausalLM
 
-config = NexusConfig(
+config = FielixConfig(
     vocab_size=32000,
     dim=512,
     num_layers=6,
@@ -155,7 +155,7 @@ config = NexusConfig(
     use_memory=True,         # 启用螺旋记忆
 )
 
-model = NexusForCausalLM(config)
+model = FielixForCausalLM(config)
 ```
 
 ### 待优化方向

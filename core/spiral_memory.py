@@ -1,5 +1,5 @@
 """
-Nexus Architecture - Spiral Memory Module
+Fielix Architecture - Spiral Memory Module
 螺旋记忆模块
 
 核心创新：信息在多个时间尺度上螺旋式积累，模拟人脑的记忆巩固过程
@@ -318,7 +318,7 @@ class SpiralMemoryBank(nn.Module):
 
 class SpiralMemoryLayer(nn.Module):
     """
-    螺旋记忆层：将螺旋记忆集成到 Nexus 架构中
+    螺旋记忆层：将螺旋记忆集成到 Fielix 架构中
     
     这一层在处理序列时维护和更新记忆状态
     """

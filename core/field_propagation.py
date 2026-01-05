@@ -1,5 +1,5 @@
 """
-Nexus Architecture - Field Effect Propagation Module
+Fielix Architecture - Field Effect Propagation Module
 场效应传播模块
 
 核心创新：信息不通过显式的注意力矩阵传播，而是像物理场一样在特征空间中传播。
@@ -291,7 +291,7 @@ class FieldEffectLayer(nn.Module):
     """
     场效应层：完整的场效应传播层
     
-    这是 Nexus 架构的核心组件，替代传统的自注意力层
+    这是 Fielix 架构的核心组件，替代传统的自注意力层
     """
     
     def __init__(

@@ -1,5 +1,5 @@
 """
-Nexus 架构对话模型训练 - 使用真正的 Nexus 架构
+Fielix 架构对话模型训练 - 使用真正的 Fielix 架构
 """
 
 import torch
@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from models.nexus_model import NexusConfig, NexusForCausalLM
+from models.nexus_model import FielixConfig, FielixForCausalLM
 
 # ============================================================================
 # 分词器
@@ -64,8 +64,8 @@ class CharTokenizer:
 CONVERSATIONS = [
     ("你好", "你好！有什么可以帮你的？"),
     ("嗨", "嗨！很高兴见到你！"),
-    ("你是谁", "我是 Nexus，一个基于全新神经网络架构的 AI 助手。"),
-    ("你叫什么", "我叫 Nexus，采用场效应传播和动态拓扑技术。"),
+    ("你是谁", "我是 Fielix，一个基于全新神经网络架构的 AI 助手。"),
+    ("你叫什么", "我叫 Fielix，采用场效应传播和动态拓扑技术。"),
     ("你能做什么", "我可以和你聊天，回答问题。"),
     ("谢谢", "不客气！"),
     ("再见", "再见！下次见！"),
@@ -82,7 +82,7 @@ CONVERSATIONS = [
     ("你多大", "我刚被创建，很年轻！"),
     ("你在哪", "我在电脑里，随时待命。"),
     ("无聊", "可以看书或听音乐！"),
-    ("介绍一下你自己", "我是 Nexus，使用场效应传播、动态拓扑和螺旋记忆构建的 AI。"),
+    ("介绍一下你自己", "我是 Fielix，使用场效应传播、动态拓扑和螺旋记忆构建的 AI。"),
     ("什么是人工智能", "人工智能是让计算机模拟人类智能的技术。"),
     ("你聪明吗", "我会尽力用我学到的知识帮助你！"),
 ]
@@ -93,10 +93,10 @@ CONVERSATIONS = [
 
 def train():
     print("=" * 60)
-    print("Nexus 架构对话模型训练")
+    print("Fielix 架构对话模型训练")
     print("=" * 60)
     
-    # DirectML 对复杂操作支持有限，Nexus 架构建议使用 CPU 或 CUDA
+    # DirectML 对复杂操作支持有限，Fielix 架构建议使用 CPU 或 CUDA
     # AMD GPU 需要 ROCm (Linux) 才能完整支持
     if torch.cuda.is_available():
         device = "cuda"
@@ -129,9 +129,9 @@ def train():
     
     dataset = torch.tensor(data, dtype=torch.long)
     
-    # 创建 Nexus 模型
-    print("\n创建 Nexus 模型...")
-    config = NexusConfig(
+    # 创建 Fielix 模型
+    print("\n创建 Fielix 模型...")
+    config = FielixConfig(
         vocab_size=tokenizer.vocab_size + 50,
         dim=128,                    # 小维度加快训练
         num_layers=4,               # 4 层
@@ -145,7 +145,7 @@ def train():
         eos_token_id=2,
     )
     
-    model = NexusForCausalLM(config).to(device)
+    model = FielixForCausalLM(config).to(device)
     params = model.get_num_params()
     print(f"参数量: {params:,} ({params/1e6:.2f}M)")
     print(f"注意力类型: {config.attention_type}")
@@ -193,14 +193,14 @@ def train():
         'model_state_dict': model.state_dict(),
         'config': config,
         'loss': best_loss
-    }, "./checkpoints/nexus_chat.pt")
-    tokenizer.save("./checkpoints/nexus_tokenizer.json")
+    }, "./checkpoints/fielix_chat.pt")
+    tokenizer.save("./checkpoints/fielix_tokenizer.json")
     
     print(f"\n模型已保存！最佳 loss: {best_loss:.4f}")
     print("=" * 60)
     
     # 测试
-    print("\n测试 Nexus 模型生成:")
+    print("\n测试 Fielix 模型生成:")
     model.eval()
     
     test_inputs = ["你好", "你是谁", "再见", "介绍一下你自己"]
@@ -224,7 +224,7 @@ def train():
             response = response.split("<BOT>")[-1]
         
         print(f"  用户: {user_input}")
-        print(f"  Nexus: {response}\n")
+        print(f"  Fielix: {response}\n")
 
 
 if __name__ == "__main__":

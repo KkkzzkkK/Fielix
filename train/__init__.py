@@ -1,1 +1,1 @@
-"""Nexus Training Module"""
+"""Fielix Training Module"""

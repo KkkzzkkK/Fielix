@@ -1,6 +1,6 @@
 """
-Nexus Architecture - 使用示例
-演示如何使用 Nexus 架构
+Fielix Architecture - 使用示例
+演示如何使用 Fielix 架构
 
 本文件展示：
 1. 创建模型
@@ -14,23 +14,23 @@ import sys
 sys.path.append('..')
 
 from nexus import (
-    NexusConfig,
-    NexusForCausalLM,
-    NexusForSequenceClassification,
-    create_nexus_tiny,
-    create_nexus_small,
-    create_nexus_base
+    FielixConfig,
+    FielixForCausalLM,
+    FielixForSequenceClassification,
+    create_fielix_tiny,
+    create_fielix_small,
+    create_fielix_base
 )
 
 
 def demo_basic_usage():
     """基本用法演示"""
     print("=" * 60)
-    print("Nexus Architecture - 基本用法演示")
+    print("Fielix Architecture - 基本用法演示")
     print("=" * 60)
     
     # 创建配置
-    config = NexusConfig(
+    config = FielixConfig(
         vocab_size=32000,
         dim=256,
         num_layers=4,
@@ -49,7 +49,7 @@ def demo_basic_usage():
     print(f"  - 使用记忆: {config.use_memory}")
     
     # 创建模型
-    model = NexusForCausalLM(config)
+    model = FielixForCausalLM(config)
     
     # 计算参数量
     num_params = model.get_num_params()
@@ -77,11 +77,11 @@ def demo_basic_usage():
 def demo_text_generation():
     """文本生成演示"""
     print("\n" + "=" * 60)
-    print("Nexus Architecture - 文本生成演示")
+    print("Fielix Architecture - 文本生成演示")
     print("=" * 60)
     
     # 创建小模型
-    model = create_nexus_tiny()
+    model = create_fielix_tiny()
     model.eval()
     
     # 模拟输入（实际应用中需要 tokenizer）
@@ -108,10 +108,10 @@ def demo_text_generation():
 def demo_sequence_classification():
     """序列分类演示"""
     print("\n" + "=" * 60)
-    print("Nexus Architecture - 序列分类演示")
+    print("Fielix Architecture - 序列分类演示")
     print("=" * 60)
     
-    config = NexusConfig(
+    config = FielixConfig(
         vocab_size=32000,
         dim=256,
         num_layers=4,
@@ -120,7 +120,7 @@ def demo_sequence_classification():
     )
     
     num_labels = 5
-    model = NexusForSequenceClassification(config, num_labels)
+    model = FielixForSequenceClassification(config, num_labels)
     model.eval()
     
     # 创建输入
@@ -146,13 +146,13 @@ def demo_sequence_classification():
 def demo_model_variants():
     """模型变体演示"""
     print("\n" + "=" * 60)
-    print("Nexus Architecture - 模型变体演示")
+    print("Fielix Architecture - 模型变体演示")
     print("=" * 60)
     
     variants = [
-        ("Nexus-Tiny", create_nexus_tiny),
-        ("Nexus-Small", create_nexus_small),
-        ("Nexus-Base", create_nexus_base),
+        ("Fielix-Tiny", create_fielix_tiny),
+        ("Fielix-Small", create_fielix_small),
+        ("Fielix-Base", create_fielix_base),
     ]
     
     for name, factory in variants:
@@ -168,14 +168,14 @@ def demo_model_variants():
 def demo_custom_architecture():
     """自定义架构演示"""
     print("\n" + "=" * 60)
-    print("Nexus Architecture - 自定义架构演示")
+    print("Fielix Architecture - 自定义架构演示")
     print("=" * 60)
     
     # 创建自定义配置
     configs = [
         {
             "name": "Field-Only",
-            "config": NexusConfig(
+            "config": FielixConfig(
                 dim=256, num_layers=4,
                 attention_type='field',
                 use_memory=False,
@@ -184,7 +184,7 @@ def demo_custom_architecture():
         },
         {
             "name": "Topology-Only",
-            "config": NexusConfig(
+            "config": FielixConfig(
                 dim=256, num_layers=4,
                 attention_type='topology',
                 use_memory=False,
@@ -193,7 +193,7 @@ def demo_custom_architecture():
         },
         {
             "name": "Hybrid + Memory",
-            "config": NexusConfig(
+            "config": FielixConfig(
                 dim=256, num_layers=4,
                 attention_type='hybrid',
                 use_memory=True,
@@ -202,7 +202,7 @@ def demo_custom_architecture():
         },
         {
             "name": "MoE Variant",
-            "config": NexusConfig(
+            "config": FielixConfig(
                 dim=256, num_layers=4,
                 attention_type='hybrid',
                 use_memory=False,
@@ -213,7 +213,7 @@ def demo_custom_architecture():
     ]
     
     for item in configs:
-        model = NexusForCausalLM(item["config"])
+        model = FielixForCausalLM(item["config"])
         num_params = model.get_num_params()
         print(f"\n{item['name']}:")
         print(f"  - 参数量: {num_params:,}")
@@ -224,10 +224,10 @@ def demo_custom_architecture():
 def demo_memory_system():
     """记忆系统演示"""
     print("\n" + "=" * 60)
-    print("Nexus Architecture - 螺旋记忆系统演示")
+    print("Fielix Architecture - 螺旋记忆系统演示")
     print("=" * 60)
     
-    config = NexusConfig(
+    config = FielixConfig(
         dim=256,
         num_layers=4,
         attention_type='field',
@@ -235,7 +235,7 @@ def demo_memory_system():
         memory_levels=3
     )
     
-    model = NexusForCausalLM(config)
+    model = FielixForCausalLM(config)
     model.eval()
     
     # 模拟流式处理
@@ -266,12 +266,12 @@ def demo_memory_system():
 def demo_inference_speed():
     """推理速度演示"""
     print("\n" + "=" * 60)
-    print("Nexus Architecture - 推理速度演示")
+    print("Fielix Architecture - 推理速度演示")
     print("=" * 60)
     
     import time
     
-    model = create_nexus_tiny()
+    model = create_fielix_tiny()
     model.eval()
     
     # 预热
