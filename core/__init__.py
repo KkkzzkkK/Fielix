@@ -54,7 +54,6 @@ from .nexus_block import (
     CrossTopologyAttention
 )
 
-
 from .utils import (
     init_weights,
     init_fielix_model,

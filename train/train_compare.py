@@ -264,7 +264,7 @@ def main(model_type):
             dim=CONFIG['dim'],
             num_layers=CONFIG['num_layers'],
             max_seq_len=CONFIG['max_len'],
-            attention_type='hybrid',  # 最佳方案：Field + Topology 交替注意力
+            attention_type='hybrid',  # 保留 hybrid：同时使用 field + topology
             use_memory=True,  # 保留螺旋记忆
             ffn_type='gated',
             field_iterations=2,

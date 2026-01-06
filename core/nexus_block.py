@@ -49,7 +49,7 @@ class FielixBlock(nn.Module):
     def __init__(
         self,
         dim: int,
-        attention_type: str = 'field',  # 'field', 'topology', 'hybrid'
+        attention_type: str = 'field',  # 'field', 'topology', 'hybrid', 'alternating'
         use_memory: bool = False,
         ffn_type: str = 'gated',
         num_experts: int = 8,
@@ -80,25 +80,26 @@ class FielixBlock(nn.Module):
                 dropout=dropout
             )
         elif attention_type == 'hybrid':
-            # 优化：使用交替注意力（每层只计算一种，但整体使用两种）
-            # 奇数层用 field，偶数层用 topology
-            if layer_idx % 2 == 0:
-                self.attention = FieldEffectLayer(
-                    dim,
-                    num_iterations=field_iterations,
-                    dropout=dropout
-                )
-                self._attn_type = 'field'
-            else:
-                self.attention = DynamicTopologyLayer(
-                    dim,
-                    use_hierarchical=True,
-                    num_levels=topology_levels,
-                    dropout=dropout
-                )
-                self._attn_type = 'topology'
-        else:  # alternating
-            # 与 hybrid 相同的交替模式
+            # 真正的双层注意力：同时运行 Field + Topology
+            self.field_attention = FieldEffectLayer(
+                dim,
+                num_iterations=field_iterations,
+                dropout=dropout
+            )
+            self.topology_attention = DynamicTopologyLayer(
+                dim,
+                use_hierarchical=True,
+                num_levels=topology_levels,
+                dropout=dropout
+            )
+            # 混合门控
+            self.hybrid_gate = nn.Sequential(
+                nn.Linear(dim, dim // 4),
+                nn.GELU(),
+                nn.Linear(dim // 4, 2),
+                nn.Softmax(dim=-1)
+            )
+        else:  # alternating（显式交替模式）
             if layer_idx % 2 == 0:
                 self.attention = FieldEffectLayer(
                     dim,
@@ -151,8 +152,14 @@ class FielixBlock(nn.Module):
             aux_loss: 辅助损失
         """
         # 1. 注意力层
-        if self.attention_type in ['hybrid']:
-            # 交替注意力：每层只运行一种，整体使用两种
+        if self.attention_type == 'hybrid':
+            # 双层注意力：同时运行 Field + Topology，门控混合
+            gate = self.hybrid_gate(x.mean(dim=1, keepdim=True))  # (batch, 1, 2)
+            field_out = self.field_attention(x, mask)
+            topo_out = self.topology_attention(x, mask, causal)
+            x = gate[:, :, 0:1] * field_out + gate[:, :, 1:2] * topo_out
+        elif self.attention_type == 'alternating':
+            # 交替注意力：每层只运行一种
             if self._attn_type == 'field':
                 x = self.attention(x, mask)
             else:
