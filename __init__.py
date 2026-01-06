@@ -33,7 +33,6 @@ __author__ = "Fielix Research Team"
 
 from .core import (
     # Field Propagation
-    FieldGenerator,
     FieldPropagator,
     FieldSensor,
     FieldEffectLayer,
@@ -141,7 +140,6 @@ __all__ = [
     '__author__',
     
     # Core components
-    'FieldGenerator',
     'FieldPropagator',
     'FieldSensor',
     'FieldEffectLayer',

@@ -40,7 +40,7 @@ CONFIG = {
     'num_layers': 8,
     'num_heads': 8,
     'dropout': 0.1,
-    'max_samples': 50000,
+    'max_samples': 10000,
     'num_workers': 4,
 }
 
@@ -109,10 +109,10 @@ class TransformerBlock(nn.Module):
         self.attn = nn.MultiheadAttention(dim, num_heads, dropout=dropout, batch_first=True)
         self.norm2 = nn.LayerNorm(dim)
         self.ffn = nn.Sequential(
-            nn.Linear(dim, dim * 4),
+            nn.Linear(dim, dim * 3),  # 4x → 3x 公平对比
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(dim * 4, dim),
+            nn.Linear(dim * 3, dim),
             nn.Dropout(dropout),
         )
     
@@ -264,8 +264,8 @@ def main(model_type):
             dim=CONFIG['dim'],
             num_layers=CONFIG['num_layers'],
             max_seq_len=CONFIG['max_len'],
-            attention_type='field',
-            use_memory=False,
+            attention_type='hybrid',  # 最佳方案：Field + Topology 交替注意力
+            use_memory=True,  # 保留螺旋记忆
             ffn_type='gated',
             field_iterations=2,
             dropout=CONFIG['dropout'],

@@ -207,9 +207,7 @@ class SparseExpertFFN(nn.Module):
 
 class GatedFFN(nn.Module):
     """
-    门控前馈网络：使用 GLU 变体
-    
-    灵感来自 SwiGLU，但增加了动态门控
+    门控前馈网络（极速版）：简化 SwiGLU
     """
     
     def __init__(
@@ -219,55 +217,18 @@ class GatedFFN(nn.Module):
         dropout: float = 0.1
     ):
         super().__init__()
-        self.dim = dim
-        self.hidden_dim = hidden_dim or int(dim * 8 / 3)  # SwiGLU 的最优比例
+        # 使用更小的隐藏层 (2x 而非 8/3x)
+        self.hidden_dim = hidden_dim or dim * 2
         
-        # 门控投影
-        self.gate_proj = nn.Linear(dim, self.hidden_dim, bias=False)
-        
-        # 值投影
-        self.up_proj = nn.Linear(dim, self.hidden_dim, bias=False)
-        
-        # 输出投影
+        # 融合投影
+        self.gate_up_proj = nn.Linear(dim, self.hidden_dim * 2, bias=False)
         self.down_proj = nn.Linear(self.hidden_dim, dim, bias=False)
-        
-        # 动态门控调制
-        self.gate_modulator = nn.Sequential(
-            nn.Linear(dim, dim // 4),
-            nn.GELU(),
-            nn.Linear(dim // 4, 1),
-            nn.Sigmoid()
-        )
-        
         self.dropout = nn.Dropout(dropout)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: (batch, seq_len, dim)
-        
-        Returns:
-            output: (batch, seq_len, dim)
-        """
-        # 门控
-        gate = F.silu(self.gate_proj(x))
-        
-        # 值
-        up = self.up_proj(x)
-        
-        # 动态调制
-        modulation = self.gate_modulator(x)
-        
-        # GLU 操作
-        hidden = gate * up * modulation
-        
-        # Dropout
-        hidden = self.dropout(hidden)
-        
-        # 输出
-        output = self.down_proj(hidden)
-        
-        return output
+        gate_up = self.gate_up_proj(x)
+        gate, up = gate_up.chunk(2, dim=-1)
+        return self.down_proj(self.dropout(F.silu(gate) * up))
 
 
 class FielixFeedForward(nn.Module):

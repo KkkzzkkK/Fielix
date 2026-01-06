@@ -12,7 +12,6 @@ Fielix 架构核心模块
 """
 
 from .field_propagation import (
-    FieldGenerator,
     FieldPropagator,
     FieldSensor,
     FieldEffectLayer
@@ -55,6 +54,7 @@ from .nexus_block import (
     CrossTopologyAttention
 )
 
+
 from .utils import (
     init_weights,
     init_fielix_model,
@@ -74,8 +74,7 @@ from .utils import (
 
 __all__ = [
     # Field Propagation
-    'FieldGenerator',
-    'FieldPropagator', 
+    'FieldPropagator',
     'FieldSensor',
     'FieldEffectLayer',
     

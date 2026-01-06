@@ -419,12 +419,12 @@ class HierarchicalTopology(nn.Module):
 
 class DynamicTopologyLayer(nn.Module):
     """
-    动态拓扑层：Fielix 架构的核心连接层
+    动态拓扑层（极速版）：简化的稀疏连接
     
-    集成了：
-    - 动态拓扑预测
-    - 稀疏消息传递
-    - 层次化连接
+    优化：
+    - 移除复杂的层次化拓扑
+    - 使用局部窗口 + 全局采样
+    - 简化消息传递
     """
     
     def __init__(
@@ -436,19 +436,20 @@ class DynamicTopologyLayer(nn.Module):
     ):
         super().__init__()
         self.dim = dim
-        self.use_hierarchical = use_hierarchical
+        self.window_size = 16  # 局部窗口
         
         # 输入归一化
         self.norm = nn.LayerNorm(dim)
         
-        if use_hierarchical:
-            self.topology_module = HierarchicalTopology(dim, num_levels)
-        else:
-            self.topology_predictor = TopologyPredictor(dim)
-            self.message_passing = SparseMessagePassing(dim)
+        # 简化的局部卷积
+        self.local_conv = nn.Conv1d(dim, dim, kernel_size=3, padding=0, groups=min(dim, 8), bias=False)
         
-        # 输出投影
-        self.output_proj = nn.Linear(dim, dim)
+        # 全局信息聚合
+        self.global_proj = nn.Linear(dim, dim, bias=False)
+        
+        # 混合权重
+        self.alpha = nn.Parameter(torch.tensor(0.7))
+        
         self.dropout = nn.Dropout(dropout)
     
     def forward(
@@ -457,25 +458,24 @@ class DynamicTopologyLayer(nn.Module):
         mask: Optional[torch.Tensor] = None,
         causal: bool = True
     ) -> torch.Tensor:
-        """
-        Args:
-            x: (batch, seq_len, dim)
-            mask: (batch, seq_len)
-            causal: 是否因果
-        
-        Returns:
-            output: (batch, seq_len, dim)
-        """
+        """极速拓扑处理"""
         residual = x
         x = self.norm(x)
         
-        if self.use_hierarchical:
-            processed = self.topology_module(x, mask, causal)
-        else:
-            topology, weights = self.topology_predictor(x, mask, causal)
-            processed = self.message_passing(x, topology, weights)
+        # 局部卷积（因果）
+        x_t = x.transpose(1, 2)
+        x_t = F.pad(x_t, (2, 0))  # 因果填充
+        local_out = self.local_conv(x_t).transpose(1, 2)
         
-        output = self.output_proj(processed)
+        # 全局信息（简单平均池化）
+        global_info = x.mean(dim=1, keepdim=True)  # (batch, 1, dim)
+        global_out = self.global_proj(global_info).expand_as(x)
+        
+        # 混合局部和全局
+        output = self.alpha * local_out + (1 - self.alpha) * global_out
         output = self.dropout(output)
+        
+        if mask is not None:
+            output = output * mask.unsqueeze(-1)
         
         return residual + output

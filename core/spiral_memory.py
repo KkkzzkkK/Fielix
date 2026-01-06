@@ -318,41 +318,37 @@ class SpiralMemoryBank(nn.Module):
 
 class SpiralMemoryLayer(nn.Module):
     """
-    螺旋记忆层：将螺旋记忆集成到 Fielix 架构中
+    螺旋记忆层（极速版）：简化的记忆增强机制
     
-    这一层在处理序列时维护和更新记忆状态
+    优化：
+    - 使用简单的 RNN 风格记忆
+    - 移除复杂的多层级结构
+    - 批量更新记忆
     """
     
     def __init__(
         self,
         dim: int,
         num_levels: int = 3,
-        write_every_n: int = 4,  # 每处理 n 个 token 写入一次
+        write_every_n: int = 4,
         dropout: float = 0.1
     ):
         super().__init__()
         self.dim = dim
-        self.num_levels = num_levels
-        self.write_every_n = write_every_n
-        
-        # 记忆库
-        self.memory_bank = SpiralMemoryBank(dim, num_levels)
-        
-        # 写入信息压缩器（将 n 个 token 压缩为一个记忆条目）
-        self.write_compressor = nn.Sequential(
-            nn.Linear(dim * write_every_n, dim * 2),
-            nn.GELU(),
-            nn.Linear(dim * 2, dim)
-        )
+        self.num_slots = 8  # 固定记忆槽数量
         
         # 归一化
         self.norm = nn.LayerNorm(dim)
         
-        # 门控（决定记忆信息的影响程度）
-        self.memory_gate = nn.Sequential(
-            nn.Linear(dim * 2, dim),
-            nn.Sigmoid()
-        )
+        # 简单的记忆读取：线性投影 + 注意力
+        self.query_proj = nn.Linear(dim, dim, bias=False)
+        self.memory_proj = nn.Linear(dim, dim, bias=False)
+        
+        # 记忆更新：简单的 EMA 风格
+        self.update_weight = nn.Parameter(torch.tensor(0.1))
+        
+        # 输出门控
+        self.gate = nn.Linear(dim * 2, dim, bias=False)
         
         self.dropout = nn.Dropout(dropout)
     
@@ -362,60 +358,42 @@ class SpiralMemoryLayer(nn.Module):
         memories: Optional[List[torch.Tensor]] = None,
         return_memories: bool = False
     ) -> Tuple[torch.Tensor, Optional[List[torch.Tensor]]]:
-        """
-        处理序列并更新记忆
-        
-        Args:
-            x: (batch, seq_len, dim) 输入序列
-            memories: 可选的初始记忆状态
-            return_memories: 是否返回更新后的记忆
-        
-        Returns:
-            output: (batch, seq_len, dim) 输出序列
-            memories: 可选的更新后记忆
-        """
+        """极速记忆增强"""
         batch_size, seq_len, dim = x.shape
         device = x.device
         
-        # 初始化记忆（如果需要）
+        # 初始化记忆
         if memories is None:
-            memories = self.memory_bank.init_memory(batch_size, device)
+            memories = [torch.zeros(batch_size, self.num_slots, dim, device=device)]
+        
+        memory = memories[0]  # (batch, slots, dim)
         
         residual = x
         x = self.norm(x)
         
-        # 1. 从记忆中读取相关信息
-        memory_info = self.memory_bank.read(memories, x)
+        # 简单记忆读取：query-key attention
+        query = self.query_proj(x)  # (batch, seq, dim)
+        key = self.memory_proj(memory)  # (batch, slots, dim)
         
-        # 2. 计算记忆门控
-        gate_input = torch.cat([x, memory_info], dim=-1)
-        gate = self.memory_gate(gate_input)
+        # 计算注意力
+        attn = torch.matmul(query, key.transpose(-2, -1))  # (batch, seq, slots)
+        attn = F.softmax(attn / (dim ** 0.5), dim=-1)
         
-        # 3. 融合记忆信息
-        enhanced = x + gate * memory_info
+        # 读取记忆
+        memory_out = torch.matmul(attn, memory)  # (batch, seq, dim)
         
-        # 4. 写入新记忆（每 write_every_n 个 token）
-        num_writes = seq_len // self.write_every_n
-        if num_writes > 0:
-            # 将序列分块
-            truncated_len = num_writes * self.write_every_n
-            chunks = x[:, :truncated_len, :].view(
-                batch_size, num_writes, self.write_every_n, dim
-            )
-            
-            # 压缩每个块
-            chunks_flat = chunks.view(batch_size * num_writes, -1)
-            write_info = self.write_compressor(chunks_flat)
-            write_info = write_info.view(batch_size, num_writes, dim)
-            
-            # 逐个写入
-            for i in range(num_writes):
-                memories = self.memory_bank.write(memories, write_info[:, i, :])
+        # 门控融合
+        gate_input = torch.cat([x, memory_out], dim=-1)
+        gate = torch.sigmoid(self.gate(gate_input))
+        enhanced = x + gate * memory_out
         
-        # 应用 dropout
+        # 更新记忆：使用序列均值
+        if return_memories:
+            new_info = x.mean(dim=1, keepdim=True)  # (batch, 1, dim)
+            memory = (1 - self.update_weight) * memory + self.update_weight * new_info
+            memories = [memory]
+        
         output = self.dropout(enhanced)
-        
-        # 残差连接
         output = residual + output
         
         if return_memories:

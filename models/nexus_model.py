@@ -176,7 +176,8 @@ class FielixDecoder(nn.Module):
                 field_iterations=config.field_iterations,
                 topology_levels=config.topology_levels,
                 memory_levels=config.memory_levels,
-                dropout=config.dropout
+                dropout=config.dropout,
+                layer_idx=i  # 传递层索引用于交替注意力
             )
             for i in range(config.num_layers)
         ])

@@ -56,17 +56,19 @@ class FielixBlock(nn.Module):
         field_iterations: int = 4,
         topology_levels: int = 3,
         memory_levels: int = 3,
-        dropout: float = 0.1
+        dropout: float = 0.1,
+        layer_idx: int = 0  # 用于交替模式
     ):
         super().__init__()
         self.dim = dim
         self.attention_type = attention_type
         self.use_memory = use_memory
+        self.layer_idx = layer_idx
         
         # 选择注意力类型
         if attention_type == 'field':
             self.attention = FieldEffectLayer(
-                dim, 
+                dim,
                 num_iterations=field_iterations,
                 dropout=dropout
             )
@@ -77,25 +79,41 @@ class FielixBlock(nn.Module):
                 num_levels=topology_levels,
                 dropout=dropout
             )
-        else:  # hybrid
-            self.field_attention = FieldEffectLayer(
-                dim,
-                num_iterations=field_iterations,
-                dropout=dropout
-            )
-            self.topology_attention = DynamicTopologyLayer(
-                dim,
-                use_hierarchical=True,
-                num_levels=topology_levels,
-                dropout=dropout
-            )
-            # 混合门控
-            self.hybrid_gate = nn.Sequential(
-                nn.Linear(dim, dim // 4),
-                nn.GELU(),
-                nn.Linear(dim // 4, 2),
-                nn.Softmax(dim=-1)
-            )
+        elif attention_type == 'hybrid':
+            # 优化：使用交替注意力（每层只计算一种，但整体使用两种）
+            # 奇数层用 field，偶数层用 topology
+            if layer_idx % 2 == 0:
+                self.attention = FieldEffectLayer(
+                    dim,
+                    num_iterations=field_iterations,
+                    dropout=dropout
+                )
+                self._attn_type = 'field'
+            else:
+                self.attention = DynamicTopologyLayer(
+                    dim,
+                    use_hierarchical=True,
+                    num_levels=topology_levels,
+                    dropout=dropout
+                )
+                self._attn_type = 'topology'
+        else:  # alternating
+            # 与 hybrid 相同的交替模式
+            if layer_idx % 2 == 0:
+                self.attention = FieldEffectLayer(
+                    dim,
+                    num_iterations=field_iterations,
+                    dropout=dropout
+                )
+                self._attn_type = 'field'
+            else:
+                self.attention = DynamicTopologyLayer(
+                    dim,
+                    use_hierarchical=True,
+                    num_levels=topology_levels,
+                    dropout=dropout
+                )
+                self._attn_type = 'topology'
         
         # 螺旋记忆（可选）
         if use_memory:
@@ -133,17 +151,16 @@ class FielixBlock(nn.Module):
             aux_loss: 辅助损失
         """
         # 1. 注意力层
-        if self.attention_type == 'hybrid':
-            # 混合两种注意力
-            gate = self.hybrid_gate(x.mean(dim=1, keepdim=True))  # (batch, 1, 2)
-            field_out = self.field_attention(x, mask)
-            topo_out = self.topology_attention(x, mask, causal)
-            x = gate[:, :, 0:1] * field_out + gate[:, :, 1:2] * topo_out
-        else:
-            if self.attention_type == 'field':
+        if self.attention_type in ['hybrid']:
+            # 交替注意力：每层只运行一种，整体使用两种
+            if self._attn_type == 'field':
                 x = self.attention(x, mask)
             else:
                 x = self.attention(x, mask, causal)
+        elif self.attention_type == 'field':
+            x = self.attention(x, mask)
+        else:  # topology
+            x = self.attention(x, mask, causal)
         
         # 2. 螺旋记忆（可选）
         new_memory_state = None

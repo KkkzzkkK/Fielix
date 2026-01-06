@@ -171,12 +171,12 @@ class RelationalPositionLearner(nn.Module):
 
 class EmergentPositionEncoder(nn.Module):
     """
-    涌现式位置编码器：Fielix 架构的位置编码核心
+    涌现式位置编码器（极速版 V2）：接近零开销的位置编码
     
-    组合多种位置信息来源：
-    1. 振荡信号（绝对位置的软编码）
-    2. 关系学习（相对位置）
-    3. 流动位置（从信息流动中涌现）
+    优化：
+    - 移除因果卷积（主要开销源）
+    - 仅使用预计算的位置嵌入
+    - 添加可学习的缩放因子
     """
     
     def __init__(
@@ -189,32 +189,16 @@ class EmergentPositionEncoder(nn.Module):
     ):
         super().__init__()
         self.dim = dim
-        self.use_oscillator = use_oscillator
-        self.use_relational = use_relational
-        self.use_flow = use_flow
         self.max_seq_len = max_seq_len
         
-        # 振荡位置编码
-        if use_oscillator:
-            self.oscillator = PositionOscillator(dim)
+        # 简单的可学习位置嵌入
+        self.pos_embedding = nn.Embedding(max_seq_len, dim)
         
-        # 关系位置学习
-        if use_relational:
-            self.relational = RelationalPositionLearner(dim)
+        # 缩放因子
+        self.scale = nn.Parameter(torch.ones(1))
         
-        # 流动位置编码
-        if use_flow:
-            self.flow_encoder = FlowPositionEncoder(dim)
-        
-        # 组件融合
-        num_components = sum([use_oscillator, use_relational, use_flow])
-        if num_components > 1:
-            self.component_fusion = nn.Linear(dim * num_components, dim)
-        else:
-            self.component_fusion = nn.Identity()
-        
-        # 缓存
-        self._position_cache = {}
+        # 初始化
+        nn.init.normal_(self.pos_embedding.weight, std=0.02)
     
     def forward(
         self,
@@ -222,58 +206,23 @@ class EmergentPositionEncoder(nn.Module):
         positions: Optional[torch.Tensor] = None,
         return_bias: bool = False
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """
-        生成涌现式位置编码
-        
-        Args:
-            x: (batch, seq_len, dim)
-            positions: (batch, seq_len) 可选位置索引
-            return_bias: 是否返回位置偏置矩阵
-        
-        Returns:
-            x_with_pos: (batch, seq_len, dim) 带位置信息的表示
-            position_bias: (batch, seq_len, seq_len, dim) 可选的位置偏置
-        """
+        """极速位置编码 - 零额外计算"""
         batch, seq_len, dim = x.shape
         device = x.device
         
-        # 生成位置索引
+        # 生成位置索引（缓存友好）
         if positions is None:
-            positions = torch.arange(seq_len, device=device).unsqueeze(0).expand(batch, -1)
-        
-        components = []
-        position_bias = None
-        
-        # 1. 振荡位置编码
-        if self.use_oscillator:
-            osc_pos = self.oscillator(x, positions)
-            components.append(osc_pos)
-        
-        # 2. 关系位置（返回偏置矩阵）
-        if self.use_relational:
-            rel_bias = self.relational(x, positions)
-            if return_bias:
-                position_bias = rel_bias
-            # 将偏置聚合为位置表示
-            rel_pos = rel_bias.mean(dim=2)  # (batch, seq_len, dim)
-            components.append(rel_pos)
-        
-        # 3. 流动位置编码
-        if self.use_flow:
-            flow_pos = self.flow_encoder(x)
-            components.append(flow_pos)
-        
-        # 融合所有组件
-        if len(components) > 1:
-            combined = torch.cat(components, dim=-1)
-            position_encoding = self.component_fusion(combined)
+            positions = torch.arange(seq_len, device=device)
         else:
-            position_encoding = components[0]
+            positions = positions[0]  # 取第一个 batch
         
-        # 添加到输入
-        x_with_pos = x + position_encoding
+        # 位置嵌入 - 直接加到输入
+        pos_emb = self.pos_embedding(positions[:seq_len])  # (seq_len, dim)
         
-        return x_with_pos, position_bias
+        # 广播加法 - 高效
+        x_with_pos = x + pos_emb * self.scale
+        
+        return x_with_pos, None
 
 
 class FlowPositionEncoder(nn.Module):
