@@ -20,15 +20,18 @@ from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 
 import sys
-sys.path.append('..')
-from core import (
-    FielixBlock,
-    EmergentPositionEncoder,
-    FieldEffectLayer,
-    DynamicTopologyLayer,
-    SpiralMemoryLayer,
-    FielixFeedForward
-)
+import os
+# 确保导入 nexus/core 而非其他 core 模块
+_nexus_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _nexus_root not in sys.path:
+    sys.path.insert(0, _nexus_root)
+
+from core.nexus_block import FielixBlock
+from core.emergent_position import EmergentPositionEncoder
+from core.field_propagation import FieldEffectLayer
+from core.dynamic_topology import DynamicTopologyLayer
+from core.spiral_memory import SpiralMemoryLayer
+from core.feedforward import FielixFeedForward
 
 
 @dataclass

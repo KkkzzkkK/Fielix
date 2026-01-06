@@ -1,10 +1,13 @@
 """
-Fielix vs Transformer 对比实验
-- 相同参数量
-- 相同数据
-- 相同训练设置
+Fielix vs Transformer 对比训练
+==============================
+用法:
+  python train_compare.py --model fielix
+  python train_compare.py --model transformer
+  python train_compare.py --model both
 """
 
+import argparse
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,9 +17,10 @@ from torch.utils.data import Dataset, DataLoader
 import os
 import sys
 import json
-import random
 import time
+import math
 from pathlib import Path
+from datasets import load_dataset
 
 torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -25,43 +29,38 @@ sys.path.append(str(Path(__file__).parent.parent))
 from models.nexus_model import FielixConfig, FielixForCausalLM
 
 # ============================================================================
-# 标准 Transformer 模型（对比基准）
+# 统一配置
 # ============================================================================
+CONFIG = {
+    'batch_size': 256,
+    'max_len': 128,
+    'epochs': 15,
+    'lr': 3e-4,
+    'dim': 512,
+    'num_layers': 8,
+    'num_heads': 8,
+    'dropout': 0.1,
+    'max_samples': 50000,
+    'num_workers': 4,
+}
 
-class TransformerConfig:
-    def __init__(self, vocab_size=500, dim=256, num_layers=6, num_heads=8, 
-                 max_seq_len=128, dropout=0.1, pad_token_id=0):
+# ============================================================================
+# 标准 Transformer
+# ============================================================================
+class TransformerLM(nn.Module):
+    def __init__(self, vocab_size, dim, num_layers, num_heads, max_len, dropout=0.1):
+        super().__init__()
         self.vocab_size = vocab_size
         self.dim = dim
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.max_seq_len = max_seq_len
-        self.dropout = dropout
-        self.pad_token_id = pad_token_id
-
-class TransformerLM(nn.Module):
-    """标准 Transformer 语言模型"""
-    
-    def __init__(self, config):
-        super().__init__()
-        self.config = config
+        self.embed = nn.Embedding(vocab_size, dim)
+        self.pos_embed = nn.Embedding(max_len, dim)
+        self.drop = nn.Dropout(dropout)
         
-        self.embed = nn.Embedding(config.vocab_size, config.dim)
-        self.pos_embed = nn.Embedding(config.max_seq_len, config.dim)
-        self.drop = nn.Dropout(config.dropout)
-        
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=config.dim,
-            nhead=config.num_heads,
-            dim_feedforward=config.dim * 4,
-            dropout=config.dropout,
-            batch_first=True,
-            norm_first=True
-        )
-        self.transformer = nn.TransformerEncoder(encoder_layer, config.num_layers)
-        
-        self.norm = nn.LayerNorm(config.dim)
-        self.head = nn.Linear(config.dim, config.vocab_size, bias=False)
+        self.layers = nn.ModuleList([
+            TransformerBlock(dim, num_heads, dropout) for _ in range(num_layers)
+        ])
+        self.norm = nn.LayerNorm(dim)
+        self.head = nn.Linear(dim, vocab_size, bias=False)
         self.head.weight = self.embed.weight  # 权重绑定
         
         self._init_weights()
@@ -72,60 +71,72 @@ class TransformerLM(nn.Module):
                 nn.init.xavier_uniform_(p)
     
     def forward(self, input_ids, labels=None):
-        batch, seq_len = input_ids.shape
-        device = input_ids.device
-        
-        pos = torch.arange(seq_len, device=device).unsqueeze(0)
+        B, L = input_ids.shape
+        pos = torch.arange(L, device=input_ids.device)
         x = self.embed(input_ids) + self.pos_embed(pos)
         x = self.drop(x)
         
-        # 因果掩码
-        mask = torch.triu(torch.ones(seq_len, seq_len, device=device), diagonal=1).bool()
+        for layer in self.layers:
+            x = layer(x)
         
-        x = self.transformer(x, mask=mask, is_causal=True)
-        x = self.norm(x)
-        logits = self.head(x)
+        logits = self.head(self.norm(x))
         
         loss = None
         if labels is not None:
-            shift_logits = logits[:, :-1, :].contiguous()
-            shift_labels = labels[:, 1:].contiguous()
             loss = F.cross_entropy(
-                shift_logits.view(-1, self.config.vocab_size),
-                shift_labels.view(-1),
-                ignore_index=self.config.pad_token_id
+                logits[:, :-1].reshape(-1, self.vocab_size),
+                labels[:, 1:].reshape(-1),
+                ignore_index=0
             )
-        
         return {'logits': logits, 'loss': loss}
     
     @torch.no_grad()
-    def generate(self, input_ids, max_new_tokens=30, temperature=0.7, top_k=30):
+    def generate(self, input_ids, max_new_tokens=30, temperature=0.7):
         for _ in range(max_new_tokens):
-            idx = input_ids[:, -self.config.max_seq_len:]
-            logits = self(idx)['logits'][:, -1, :] / temperature
-            if top_k > 0:
-                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < v[:, [-1]]] = float('-inf')
-            next_token = torch.multinomial(F.softmax(logits, dim=-1), 1)
+            logits = self(input_ids[:, -CONFIG['max_len']:])['logits'][:, -1, :] / temperature
+            probs = F.softmax(logits, dim=-1)
+            next_token = torch.multinomial(probs, 1)
             input_ids = torch.cat([input_ids, next_token], dim=1)
-            if next_token.item() == 2:
+            if next_token.item() == 2:  # EOS
                 break
         return input_ids
 
-# ============================================================================
-# 分词器和数据
-# ============================================================================
 
+class TransformerBlock(nn.Module):
+    def __init__(self, dim, num_heads, dropout=0.1):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(dim)
+        self.attn = nn.MultiheadAttention(dim, num_heads, dropout=dropout, batch_first=True)
+        self.norm2 = nn.LayerNorm(dim)
+        self.ffn = nn.Sequential(
+            nn.Linear(dim, dim * 4),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(dim * 4, dim),
+            nn.Dropout(dropout),
+        )
+    
+    def forward(self, x):
+        B, L, D = x.shape
+        mask = torch.triu(torch.ones(L, L, device=x.device), diagonal=1).bool()
+        
+        # Pre-LN
+        h = self.norm1(x)
+        h, _ = self.attn(h, h, h, attn_mask=mask, is_causal=True)
+        x = x + h
+        
+        x = x + self.ffn(self.norm2(x))
+        return x
+
+
+# ============================================================================
+# 分词器
+# ============================================================================
 class CharTokenizer:
     def __init__(self):
-        self.char_to_id = {"<PAD>": 0, "<BOS>": 1, "<EOS>": 2, "<UNK>": 3, "<USER>": 4, "<BOT>": 5}
+        self.char_to_id = {"<PAD>": 0, "<BOS>": 1, "<EOS>": 2, "<UNK>": 3}
         self.id_to_char = {v: k for k, v in self.char_to_id.items()}
-        self.vocab_size = 6
-        for c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?;:'\"-()+-*/=，。！？、":
-            if c not in self.char_to_id:
-                self.char_to_id[c] = self.vocab_size
-                self.id_to_char[self.vocab_size] = c
-                self.vocab_size += 1
+        self.vocab_size = 4
     
     def add_text(self, text):
         for c in text:
@@ -138,10 +149,11 @@ class CharTokenizer:
         return [1] + [self.char_to_id.get(c, 3) for c in text] + [2]
     
     def decode(self, ids):
-        return ''.join(self.id_to_char.get(i, '') for i in ids if i > 5)
+        return ''.join(self.id_to_char.get(i, '') for i in ids if i > 3)
+
 
 class ChatDataset(Dataset):
-    def __init__(self, data, max_len=128):
+    def __init__(self, data, max_len):
         self.data = data
         self.max_len = max_len
     
@@ -149,56 +161,29 @@ class ChatDataset(Dataset):
         return len(self.data)
     
     def __getitem__(self, idx):
-        ids = self.data[idx]
-        if len(ids) < self.max_len:
-            ids = ids + [0] * (self.max_len - len(ids))
-        return torch.tensor(ids[:self.max_len], dtype=torch.long)
+        ids = self.data[idx][:self.max_len]
+        ids = ids + [0] * (self.max_len - len(ids))
+        return torch.tensor(ids, dtype=torch.long)
 
-CONVERSATIONS = [
-    ("你好", "你好！有什么可以帮你的？"),
-    ("你是谁", "我是AI助手。"),
-    ("谢谢", "不客气！"),
-    ("再见", "再见！"),
-]
-
-def generate_math_data():
-    math_data = []
-    # 加法 - 更多样本，确保学习
-    for a in range(1, 30):
-        for b in range(1, 30):
-            math_data.append((f"{a}+{b}", f"{a}+{b}={a+b}"))
-    # 乘法
-    for a in range(1, 13):
-        for b in range(1, 13):
-            math_data.append((f"{a}*{b}", f"{a}*{b}={a*b}"))
-    # 减法
-    for a in range(1, 20):
-        for b in range(1, a+1):
-            math_data.append((f"{a}-{b}", f"{a}-{b}={a-b}"))
-    return math_data
 
 # ============================================================================
-# 训练函数
+# 训练
 # ============================================================================
-
-def train_model(model, dataloader, epochs, device, model_name):
-    optimizer = AdamW(model.parameters(), lr=2e-3, weight_decay=0.01)  # 大 batch 需要大 lr
+def train_model(model, dataloader, epochs, device, name):
+    optimizer = AdamW(model.parameters(), lr=CONFIG['lr'], weight_decay=0.01)
     scaler = GradScaler("cuda")
-    
     model.train()
     history = []
-    start_time = time.time()
+    start = time.time()
     
     for epoch in range(epochs):
         total_loss = 0
-        num_batches = 0
-        
+        count = 0
         for batch in dataloader:
-            batch = batch.to(device, non_blocking=True)
-            
+            batch = batch.to(device)
             with autocast(device_type="cuda", dtype=torch.float16):
-                outputs = model(batch, labels=batch)
-                loss = outputs['loss']
+                out = model(batch, labels=batch)
+                loss = out['loss']
             
             optimizer.zero_grad()
             scaler.scale(loss).backward()
@@ -208,138 +193,141 @@ def train_model(model, dataloader, epochs, device, model_name):
             scaler.update()
             
             total_loss += loss.item()
-            num_batches += 1
+            count += 1
         
-        avg_loss = total_loss / num_batches
-        history.append(avg_loss)
-        print(f"  [{model_name}] Epoch {epoch+1:2d}: loss = {avg_loss:.4f}")
+        avg = total_loss / count
+        history.append(avg)
+        print(f"  [{name}] Epoch {epoch+1:2d}/{epochs}: loss = {avg:.4f}")
     
-    train_time = time.time() - start_time
-    return history, train_time
+    return history, time.time() - start
 
-def test_model(model, tokenizer, device, model_name):
+
+def test_model(model, tokenizer, device, name):
     model.eval()
-    tests = ["你好", "1+1", "5*6", "你是谁"]
-    print(f"\n[{model_name}] 测试:")
-    
+    tests = ["你好", "1+1等于多少", "介绍一下自己"]
+    print(f"\n[{name}] 测试:")
     for q in tests:
-        prompt = f"<USER>{q}<BOT>"
-        ids = tokenizer.encode(prompt)[:-1]
+        ids = tokenizer.encode(q)[:-1]
         input_ids = torch.tensor([ids], device=device)
-        
         with torch.no_grad():
-            out = model.generate(input_ids, max_new_tokens=20, temperature=0.7)
-        
+            out = model.generate(input_ids, max_new_tokens=30)
         resp = tokenizer.decode(out[0].tolist())
-        if "<BOT>" in resp:
-            resp = resp.split("<BOT>")[-1]
-        print(f"    {q} -> {resp}")
+        print(f"    {q} -> {resp[:50]}")
 
-# ============================================================================
-# 主函数
-# ============================================================================
 
-def main():
+def main(model_type):
     print("=" * 60)
-    print("Fielix vs Transformer 对比实验")
+    print(f"Fielix vs Transformer 对比 (模式: {model_type})")
     print("=" * 60)
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"设备: {device}")
+    print(f"配置: {CONFIG}")
     
-    # 准备数据
+    # 加载数据
+    print("\n加载 BELLE 数据集...")
+    ds = load_dataset("BelleGroup/train_0.5M_CN", split=f"train[:{CONFIG['max_samples']}]")
+    print(f"数据集: {len(ds)} 条")
+    
     tokenizer = CharTokenizer()
-    all_data = list(CONVERSATIONS) + generate_math_data()
-    
     data = []
-    for user, bot in all_data:
-        text = f"<USER>{user}<BOT>{bot}"
-        tokenizer.add_text(text)
-        data.append(tokenizer.encode(text))
     
-    data = data * 30
-    random.shuffle(data)
+    for item in ds:
+        if 'instruction' in item:
+            user = (item['instruction'] + item.get('input', ''))[:150]
+            bot = item['output'][:150]
+            if user and bot:
+                text = f"{user}{bot}"
+                tokenizer.add_text(text)
+                data.append(tokenizer.encode(text))
     
-    max_len = 64
-    dataset = ChatDataset(data, max_len)
-    dataloader = DataLoader(dataset, batch_size=1024, shuffle=True,  # 增大到 1024
-                           num_workers=8, pin_memory=True, drop_last=True)
+    print(f"样本数: {len(data)}, 词汇量: {tokenizer.vocab_size}")
     
-    print(f"样本数: {len(data)}")
-    print(f"词汇量: {tokenizer.vocab_size}")
+    dataset = ChatDataset(data, CONFIG['max_len'])
+    dataloader = DataLoader(dataset, batch_size=CONFIG['batch_size'], shuffle=True,
+                           num_workers=CONFIG['num_workers'], pin_memory=True, drop_last=True)
     
-    # ============ 创建 Fielix 模型 ============
-    print("\n" + "=" * 60)
-    print("创建 Fielix 模型...")
-    fielix_config = FielixConfig(
-        vocab_size=tokenizer.vocab_size + 50,
-        dim=256,
-        num_layers=4,               # 减少层数提高速度
-        max_seq_len=max_len,
-        attention_type='field',     # 使用场效应
-        use_memory=False,
-        ffn_type='gated',
-        dropout=0.1,
-        pad_token_id=0,
-    )
-    fielix_model = FielixForCausalLM(fielix_config).to(device)
-    fielix_params = sum(p.numel() for p in fielix_model.parameters())
-    print(f"Fielix 参数量: {fielix_params:,} ({fielix_params/1e6:.2f}M)")
-    
-    # ============ 创建 Transformer 模型 ============
-    print("\n创建 Transformer 模型...")
-    # 调整配置匹配 Fielix 参数量
-    trans_config = TransformerConfig(
-        vocab_size=tokenizer.vocab_size + 50,
-        dim=320,                    # 增大维度匹配参数量
-        num_layers=4,
-        num_heads=8,
-        max_seq_len=max_len,
-        dropout=0.1,
-        pad_token_id=0,
-    )
-    trans_model = TransformerLM(trans_config).to(device)
-    trans_params = sum(p.numel() for p in trans_model.parameters())
-    print(f"Transformer 参数量: {trans_params:,} ({trans_params/1e6:.2f}M)")
-    
-    # ============ 训练对比 ============
-    epochs = 20  # 增加 epochs 确保数学运算学习充分
-    print(f"\n开始训练 ({epochs} epochs)...")
-    print("-" * 60)
-    
-    print("\n训练 Fielix:")
-    fielix_history, fielix_time = train_model(fielix_model, dataloader, epochs, device, "Fielix")
-    
-    print("\n训练 Transformer:")
-    trans_history, trans_time = train_model(trans_model, dataloader, epochs, device, "Transformer")
-    
-    # ============ 结果对比 ============
-    print("\n" + "=" * 60)
-    print("对比结果")
-    print("=" * 60)
-    print(f"{'指标':<20} {'Fielix':<15} {'Transformer':<15}")
-    print("-" * 50)
-    print(f"{'参数量':<20} {fielix_params:,} {trans_params:,}")
-    print(f"{'最终 Loss':<20} {fielix_history[-1]:.4f} {trans_history[-1]:.4f}")
-    print(f"{'训练时间':<20} {fielix_time:.1f}s {trans_time:.1f}s")
-    print(f"{'每秒样本':<20} {len(data)*epochs/fielix_time:.0f} {len(data)*epochs/trans_time:.0f}")
-    
-    # 测试生成
-    test_model(fielix_model, tokenizer, device, "Fielix")
-    test_model(trans_model, tokenizer, device, "Transformer")
-    
-    # 保存
+    vocab_size = tokenizer.vocab_size + 100
     os.makedirs("./checkpoints", exist_ok=True)
-    torch.save({'model': fielix_model.state_dict(), 'config': fielix_config, 'history': fielix_history},
-               "./checkpoints/fielix_compare.pt")
-    torch.save({'model': trans_model.state_dict(), 'config': trans_config, 'history': trans_history},
-               "./checkpoints/transformer_compare.pt")
     
-    # 保存 tokenizer
-    with open("./checkpoints/fielix_compare_tokenizer.json", "w", encoding="utf-8") as f:
-        json.dump({'char_to_id': tokenizer.char_to_id}, f, ensure_ascii=False, indent=2)
+    fielix_result = None
+    trans_result = None
     
-    print("\n模型已保存！")
+    # Fielix
+    if model_type in ['fielix', 'both']:
+        print("\n" + "=" * 60)
+        print("训练 Fielix")
+        print("=" * 60)
+        
+        config = FielixConfig(
+            vocab_size=vocab_size,
+            dim=CONFIG['dim'],
+            num_layers=CONFIG['num_layers'],
+            max_seq_len=CONFIG['max_len'],
+            attention_type='field',
+            use_memory=False,
+            ffn_type='gated',
+            field_iterations=2,
+            dropout=CONFIG['dropout'],
+            pad_token_id=0,
+        )
+        model = FielixForCausalLM(config).to(device)
+        params = sum(p.numel() for p in model.parameters())
+        print(f"参数量: {params:,} ({params/1e6:.2f}M)")
+        
+        history, train_time = train_model(model, dataloader, CONFIG['epochs'], device, "Fielix")
+        test_model(model, tokenizer, device, "Fielix")
+        torch.save({'model': model.state_dict()}, "./checkpoints/fielix.pt")
+        
+        fielix_result = {'params': params, 'loss': history[-1], 'time': train_time}
+        
+        del model
+        torch.cuda.empty_cache()
+    
+    # Transformer
+    if model_type in ['transformer', 'both']:
+        print("\n" + "=" * 60)
+        print("训练 Transformer")
+        print("=" * 60)
+        
+        model = TransformerLM(
+            vocab_size=vocab_size,
+            dim=CONFIG['dim'],
+            num_layers=CONFIG['num_layers'],
+            num_heads=CONFIG['num_heads'],
+            max_len=CONFIG['max_len'],
+            dropout=CONFIG['dropout'],
+        ).to(device)
+        params = sum(p.numel() for p in model.parameters())
+        print(f"参数量: {params:,} ({params/1e6:.2f}M)")
+        
+        history, train_time = train_model(model, dataloader, CONFIG['epochs'], device, "Transformer")
+        test_model(model, tokenizer, device, "Transformer")
+        torch.save({'model': model.state_dict()}, "./checkpoints/transformer.pt")
+        
+        trans_result = {'params': params, 'loss': history[-1], 'time': train_time}
+    
+    # 对比
+    if model_type == 'both' and fielix_result and trans_result:
+        print("\n" + "=" * 60)
+        print("对比结果")
+        print("=" * 60)
+        print(f"{'指标':<15} {'Fielix':<20} {'Transformer':<20}")
+        print("-" * 55)
+        print(f"{'参数量':<15} {fielix_result['params']:,} {trans_result['params']:,}")
+        print(f"{'最终 Loss':<15} {fielix_result['loss']:.4f} {trans_result['loss']:.4f}")
+        print(f"{'训练时间':<15} {fielix_result['time']:.1f}s {trans_result['time']:.1f}s")
+        
+        speedup = trans_result['time'] / fielix_result['time']
+        loss_diff = (trans_result['loss'] - fielix_result['loss']) / trans_result['loss'] * 100
+        print(f"\nFielix Loss 比 Transformer 低 {loss_diff:.1f}%")
+        print(f"Transformer 训练速度是 Fielix 的 {1/speedup:.2f}x")
+    
+    print("\n完成！")
+
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, default="both", choices=["fielix", "transformer", "both"])
+    args = parser.parse_args()
+    main(args.model)
